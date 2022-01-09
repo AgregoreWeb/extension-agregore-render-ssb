@@ -1,0 +1,16 @@
+{
+  "manifest_version": 1,
+  "name": "agregore-ssb-posts-render",
+  "version": "1.0",
+
+  "description": "The ssb flavoured markdown rendering functionality for the Agregore Browser",
+
+  "permissions": ["activeTab"],
+
+  "content_scripts": [
+    {
+      "matches": ["*"],
+      "js": ["bundle.js"]
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "name": "extension-agregore-render-ssb-posts",
+  "version": "1.0.0",
+  "description": "markdown rendering for ssb posts",
+  "main": "script.js",
+  "scripts": {
+    "build": "browserify ./script.js -o ./bundle.js -v",
+    "watch": "watchify ./script.js -o ./bundle.js -v",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "agregore",
+    "ssb",
+    "markdown",
+    "extension"
+  ],
+  "author": "av8ta",
+  "license": "AGPL-3.0",
+  "dependencies": {
+    "browserify": "^17.0.0",
+    "ssb-fetch": "^1.1.5",
+    "ssb-markdown": "^6.0.7",
+    "ssb-uri2": "^1.6.0",
+    "watchify": "^4.0.0"
+  },
+  "devDependencies": {
+    "standard": "^16.0.4"
+  }
+}
