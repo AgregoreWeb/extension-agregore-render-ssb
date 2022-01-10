@@ -102681,10 +102681,12 @@ if (document.contentType.includes('application/json') && location.protocol === '
      * but don't wish to make a non-standard url...
      *
      * agregore currently appends the #music href as expected:
-     * ssb://xyz===#music
+     * ssb://message/sha256/xyz===#music
      *
      * it should probably be a route though:
-     * ssb://xyz===#music
+     * ssb://message/sha256/xyz===/#music
+     * but this is smelling. there are opinions required here when
+     * we're "only" trying to render rather than build a viewer / app
      *
      * note though, that channels aren't a protocol thing,
      * they're a patchwork construct that is ubiquitous in the ecosysem
@@ -102707,6 +102709,7 @@ if (document.contentType.includes('application/json') && location.protocol === '
     function renderUrlRef (ref) {
       console.log('url ref', ref)
       if (looksLikeLegacySSB(ref)) return convertLegacySSB(ref)
+      if (ref.startsWith('@')) return convertAtMention(ref, message)
       if (isSSBURI(ref)) return ref
       return ref
     }
@@ -102762,6 +102765,18 @@ function isPost (message) {
 
 function getMarkdown (message) {
   return message?.value?.content?.text || false
+}
+
+function convertAtMention (ref, message) {
+  const mentions = message?.value?.content?.mentions
+  if (!mentions) return ''
+  const name = ref.slice(1)
+  const link = mentions.reduce((filtered, mention) => {
+    if (name === mention.name) filtered.id = mention.link
+    return filtered
+  }, { id: null })
+  if (!link.id) return ''
+  return convertLegacySSB(link.id)
 }
 
 },{"ssb-fetch":699,"ssb-markdown":708,"ssb-uri2":713}]},{},[779]);
