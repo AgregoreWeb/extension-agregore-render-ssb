@@ -1,9 +1,15 @@
 const markdown = require('ssb-markdown')
 const { looksLikeLegacySSB, convertLegacySSB } = require('ssb-fetch')
 const { isSSBURI } = require('ssb-uri2')
+const { format: pretty, utcToZonedTime } = require('date-fns-tz')
+const enGB = require('date-fns/locale/en-GB')
+
+const shouldRender = location.protocol === 'ssb:' && document.contentType.includes('application/json')
+
+console.log('extension-render-ssb shouldRender', shouldRender)
 
 /* global location */
-if (document.contentType.includes('application/json') && location.protocol === 'ssb:') {
+if (shouldRender) {
   console.log('extension-agregore-render-ssb-posts init')
 
   try {
@@ -109,8 +115,22 @@ function isPost (message) {
   )
 }
 
-function getMarkdown (message) {
+function earliestTimeStamp (message) {
+  return Math.min(message?.timestamp, message?.value?.timestamp)
+}
+
+function insertMetadata (message) {
+  return `${message?.value?.author} ${getLocalTime(earliestTimeStamp(message))}\n\n`
+}
+
+function getRawMarkdown (message) {
   return message?.value?.content?.text || false
+}
+
+function getMarkdown (message) {
+  const rawMarkdown = getRawMarkdown(message)
+  if (!rawMarkdown) return false
+  return insertMetadata(message) + rawMarkdown
 }
 
 function convertAtMention (ref, message) {
@@ -123,4 +143,32 @@ function convertAtMention (ref, message) {
   }, { id: null })
   if (!link.id) return ''
   return convertLegacySSB(link.id)
+}
+
+// todo: time is returning as undefined - debug
+// const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
+// const fmt = 'yyyy-MM-dd HH:mm:ss zzzz'
+
+/**
+ *  utcToZonedTime(date: Date|Number|String, timeZone: String): Date
+ */
+function localDateTime (date, timezone) {
+  return utcToZonedTime(date, timezone)
+}
+
+function localTime (date, { format, timeZone }) {
+  return pretty(localDateTime(date, timeZone), format, {
+    timeZone,
+    locale: enGB // todo: get user locale
+  })
+}
+
+function getTimezone () {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone
+}
+
+function getLocalTime (date) {
+  const format = 'yyyy-MM-dd HH:mm:ss zzzz'
+  const timeZone = getTimezone()
+  return localTime(date, { format, timeZone })
 }

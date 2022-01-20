@@ -18,8 +18,10 @@
   "license": "AGPL-3.0",
   "dependencies": {
     "browserify": "^17.0.0",
+    "date-fns": "^2.28.0",
+    "date-fns-tz": "^1.2.2",
     "ssb-fetch": "^1.1.5",
-    "ssb-markdown": "^6.0.7",
+    "ssb-markdown": "github:av8ta/ssb-markdown",
     "ssb-uri2": "^1.6.0",
     "watchify": "^4.0.0"
   },
