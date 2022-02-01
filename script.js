@@ -1,8 +1,9 @@
-const markdown = require('ssb-markdown')
-const { looksLikeLegacySSB, convertLegacySSB } = require('ssb-fetch')
-const { isSSBURI } = require('ssb-uri2')
-const { format: pretty, utcToZonedTime } = require('date-fns-tz')
-const enGB = require('date-fns/locale/en-GB')
+const Mustache = require('mustache')
+const { parseUrlType } = require('./helpers/url')
+const { renderTitle } = require('./helpers/markdown')
+const { post: postTemplate, feed: feedTemplate, message: messageTemplate } = require('./templates')
+const { isPost } = require('ssb-fetch/utils')
+const hljs = require('highlight.js/lib/common')
 
 const shouldRender = location.protocol === 'ssb:' && document.contentType.includes('application/json')
 
@@ -11,164 +12,71 @@ console.log('extension-render-ssb shouldRender', shouldRender)
 /* global location */
 if (shouldRender) {
   console.log('extension-agregore-render-ssb-posts init')
-
+  let json, preElement, message
   try {
-    const json = document.querySelector('pre').innerText
-    const message = JSON.parse(json)
-    if (!isPost(message)) {
-      throw new Error(
-        `missing renderer for message type: ${message?.value?.content?.type}`
-      )
-    }
+    preElement = document.querySelector('pre')
+    json = preElement.innerText
+    message = JSON.parse(json)
+  } catch (error) {
+    throw new Error(`extension-agregore-render-ssb: Error rendering ssb content ${error}`)
+  }
 
-    const text = getMarkdown(message)
-    if (!text) throw new Error('ssb message type=post is missing text property')
+  async function main() {
+    const title = renderTitle(message.value?.content?.text)
 
-    /**
-     * what to do with hashtags?
-     * I believe they don't have a canonical uri??
-     * so, best to leave to app devs?
-     *
-     * would be good to show channel messages though...
-     * but don't wish to make a non-standard url...
-     *
-     * agregore currently appends the #music href as expected:
-     * ssb://message/sha256/xyz===#music
-     *
-     * it should probably be a route though:
-     * ssb://message/sha256/xyz===/#music
-     * but this is smelling. there are opinions required here when
-     * we're "only" trying to render rather than build a viewer / app
-     *
-     * note though, that channels aren't a protocol thing,
-     * they're a patchwork construct that is ubiquitous in the ecosysem
-     * todo: research what the ecosystem is doing
-     *
-     * todo: emoji are rendering fine on my machine, no need to render as markup atm
-     * todo: investigate if they will render fine on all platforms
-     * emoji: emojiAsMarkup => renderEmoji(emojiAsMarkup)
-     *
-     * todo: does this method even fire? I recall from using it previously that it didn't
-     * todo: find out why we have it when toUrl already does the required job!
-     * imageLink: ref => renderImageRef(ref),
-     * */
-    const options = {
-      toUrl: (ref) => renderUrlRef(ref),
-      imageLink: (ref) => ref,
-      emoji: (emojiAsMarkup) => emojiAsMarkup
-    }
+    const { template, view } = await selectTemplateView(message)
+    const mergedView = { ...message, ...view }
+    const rendered = await Mustache.render(template, mergedView)
 
-    function renderUrlRef (ref) {
-      console.log('url ref', ref)
-      if (looksLikeLegacySSB(ref)) return convertLegacySSB(ref)
-      if (ref.startsWith('@')) return convertAtMention(ref, message)
-      if (isSSBURI(ref)) return ref
-      return ref
-    }
+    const style = document.createElement('style')
+    style.innerHTML = `
+      @import url("agregore://theme/vars.css");
+      @import url("agregore://theme/style.css");
+      @import url("agregore://theme/highlight.css");
+    `
+    document.head.appendChild(style)
 
-    /**
-     * https://github.com/ssbc/ssb-markdown#mdinline-source-opts
-     * this is supposed to render one line of text, but it's giving the whole text instead
-     * todo: check issues for ssb-markdown / raise bug
-     */
-    const title = markdown.inline(text, options)
-    console.log('title', title)
+    const root = document.createElement('webview')
+    root.setAttribute('id', 'content')
+    root.innerHTML = rendered
+    document.title = title
 
-    const rendered = markdown.block(text, options)
+    /** attach ssb content to the dom */
+    document.body.replaceChild(root, preElement)
 
-    document.write(`
-  <!DOCTYPE html>
-  <title>${title}</title>
-  <meta charset="utf-8"/>
-  <meta http-equiv="Content-Type" content="text/html charset=utf-8"/>
-  <link rel="stylesheet" href="agregore://theme/style.css"/>
-  <link rel="stylesheet" href="agregore://theme/highlight.css"/>
-  ${rendered}
-  <pre>${JSON.stringify(message, null, 2)}</pre>
-  <script src="agregore://theme/highlight.js"></script>
-  <script>
-    if(window.hljs) hljs.initHighlightingOnLoad()
-
+    /** highlight headings the agregore way */
     const toAnchor = document.querySelectorAll('h1[id],h2[id],h3[id],h4[id]')
     console.log('Anchoring', toAnchor)
-  
-    for(let element of toAnchor) {
+
+    for (let element of toAnchor) {
       const anchor = document.createElement('a')
       anchor.setAttribute('href', '#' + element.id)
       anchor.setAttribute('class', 'agregore-header-anchor')
       anchor.innerHTML = element.innerHTML
       element.innerHTML = anchor.outerHTML
     }
-  </script>`)
-  } catch (error) {
-    // todo: tell user maybe? currently just dumps json - that will render soon with json extension
-    // todo: could tell user they can search for suitable extensions? and give a list?
-    console.warn(
-      `extension-agregore-render-ssb-posts: Error rendering ssb content ${error}`
-    )
+
+    /** highlight code blocks */
+    hljs.highlightAll()
   }
+  main()
 }
 
-function isPost (message) {
-  return (
-    message?.value?.content?.type === 'post' && !!message?.value?.content?.text
-  )
-}
+async function selectTemplateView(message) {
+  const urlType = parseUrlType(location.href)
 
-function earliestTimeStamp (message) {
-  return Math.min(message?.timestamp, message?.value?.timestamp)
-}
+  switch (urlType) {
+    case 'message':
+      if (isPost(message)) return postTemplate
+      else return messageTemplate
 
-function insertMetadata (message) {
-  return `${message?.value?.author} ${getLocalTime(earliestTimeStamp(message))}\n\n`
-}
+    case 'feed':
+      return feedTemplate
 
-function getRawMarkdown (message) {
-  return message?.value?.content?.text || false
-}
+    case 'blob':
+      return messageTemplate
 
-function getMarkdown (message) {
-  const rawMarkdown = getRawMarkdown(message)
-  if (!rawMarkdown) return false
-  return insertMetadata(message) + rawMarkdown
-}
-
-function convertAtMention (ref, message) {
-  const mentions = message?.value?.content?.mentions
-  if (!mentions) return ''
-  const name = ref.slice(1)
-  const link = mentions.reduce((filtered, mention) => {
-    if (name === mention.name) filtered.id = mention.link
-    return filtered
-  }, { id: null })
-  if (!link.id) return ''
-  return convertLegacySSB(link.id)
-}
-
-// todo: time is returning as undefined - debug
-// const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
-// const fmt = 'yyyy-MM-dd HH:mm:ss zzzz'
-
-/**
- *  utcToZonedTime(date: Date|Number|String, timeZone: String): Date
- */
-function localDateTime (date, timezone) {
-  return utcToZonedTime(date, timezone)
-}
-
-function localTime (date, { format, timeZone }) {
-  return pretty(localDateTime(date, timeZone), format, {
-    timeZone,
-    locale: enGB // todo: get user locale
-  })
-}
-
-function getTimezone () {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone
-}
-
-function getLocalTime (date) {
-  const format = 'yyyy-MM-dd HH:mm:ss zzzz'
-  const timeZone = getTimezone()
-  return localTime(date, { format, timeZone })
+    default:
+      return messageTemplate
+  }
 }
