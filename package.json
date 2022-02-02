@@ -23,7 +23,7 @@
     "highlight.js": "^11.4.0",
     "html-to-text": "^8.1.0",
     "mustache": "^4.2.0",
-    "ssb-fetch": "^1.3.3",
+    "ssb-fetch": "^1.4.0",
     "ssb-markdown": "github:av8ta/ssb-markdown",
     "ssb-uri2": "^1.6.0"
   },

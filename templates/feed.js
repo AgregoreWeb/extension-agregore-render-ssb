@@ -24,9 +24,20 @@ const view = {
 const template = html`
   <section>
     <b>{{name}}</b></br>
-    <b>{{{descriptionMd}}}</b></br>
+    <p>{{{descriptionMd}}}</p></br>
     <img src="{{imageUrl}}" />
   </section>
+
+  <style>
+    #content > section > b {
+      font-size: large;
+      color: var(--ag-theme-primary);
+      filter: brightness(1.5);
+    }
+    #content > section > p {
+      font-size: medium;
+    }
+  </style>
 `
 
 module.exports = {
